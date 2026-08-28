@@ -1,0 +1,3 @@
+[submodule "crates/prism-sys/prism"]
+	path = crates/prism-sys/prism
+	url = https://github.com/ethindp/prism

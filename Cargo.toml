@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members = ["crates/prism-sys", "crates/refract"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/trypsynth/refract"
+keywords = ["tts", "speech", "accessibility", "screen-reader"]
+categories = ["accessibility", "api-bindings"]
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }

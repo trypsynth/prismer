@@ -1,0 +1,18 @@
+[package]
+name = "refract"
+description = "Safe Rust bindings to the prism speech library, for speech and screen reader output"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+prism-sys = { path = "../prism-sys", version = "0.1.0" }
+
+[features]
+static = ["prism-sys/static"]

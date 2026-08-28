@@ -1,0 +1,20 @@
+[package]
+name = "prism-sys"
+description = "Raw FFI bindings to the prism speech library"
+links = "prism"
+build = "build.rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[build-dependencies]
+cmake = "0.1"
+
+[features]
+static = []
