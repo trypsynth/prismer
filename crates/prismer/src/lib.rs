@@ -10,6 +10,7 @@
 
 mod backend;
 mod context;
+mod custom_backend;
 mod error;
 mod features;
 mod id;
@@ -18,6 +19,7 @@ mod id;
 pub mod log;
 mod registry;
 mod util;
+mod vtable;
 
 use prism_sys as sys;
 
@@ -25,10 +27,11 @@ use crate::util::copy_cstr;
 pub use crate::{
 	backend::{Backend, Voice},
 	context::{Builder, Prism},
+	custom_backend::{AudioSink, CustomBackend},
 	error::{Error, Result},
 	features::Features,
 	id::BackendId,
-	registry::{AudioSink, CustomBackend, Registry, RegistryBuilder},
+	registry::{Registry, RegistryBuilder},
 };
 
 /// Returns `true` if prism supports automatic power management of
