@@ -3,7 +3,7 @@
 //!
 //! ```no_run
 //! let prism = prismer::Prism::new()?;
-//! let backend = prism.acquire_best()?;
+//! let backend = prism.create_best()?;
 //! backend.speak("Hello from Rust!", false)?;
 //! # Ok::<(), prismer::Error>(())
 //! ```
@@ -254,8 +254,13 @@ impl Prism {
 		unsafe { sys::prism_registry_exists(self.ptr(), id.0) }
 	}
 
-	/// Creates the backend with this id without initializing it; call
-	/// [`Backend::initialize`] before use.
+	/// Creates a new, independent instance of the backend with this id.
+	///
+	/// The returned backend is not initialized; call
+	/// [`Backend::initialize`] before any other method.
+	///
+	/// Use this when the backend state (voice, rate, pitch) must be yours
+	/// alone. See [`Prism::acquire`] for the shared alternative.
 	///
 	/// # Errors
 	///
@@ -265,31 +270,56 @@ impl Prism {
 		Backend::from_raw(unsafe { sys::prism_registry_create(self.ptr(), id.0) })
 	}
 
-	/// Creates the highest-priority supported backend without initializing
-	/// it; call [`Backend::initialize`] before use.
+	/// Creates a new, independent instance of the highest-priority backend
+	/// that initializes successfully.
 	///
-	/// # Errors
-	///
-	/// Returns [`Error::BackendNotAvailable`] if no backend can be created.
-	pub fn create_best(&self) -> Result<Backend<'_>> {
-		Backend::from_raw(unsafe { sys::prism_registry_create_best(self.ptr()) })
-	}
-
-	/// Creates and initializes the backend with this id.
-	///
-	/// # Errors
-	///
-	/// Returns [`Error::BackendNotAvailable`] if the backend cannot be
-	/// created and initialized.
-	pub fn acquire(&self, id: BackendId) -> Result<Backend<'_>> {
-		Backend::from_raw(unsafe { sys::prism_registry_acquire(self.ptr(), id.0) })
-	}
-
-	/// Creates and initializes the highest-priority working backend.
+	/// This is the recommended way to obtain a backend when the application
+	/// has no specific preference. The returned backend is already
+	/// initialized; do not call [`Backend::initialize`] on it.
 	///
 	/// # Errors
 	///
 	/// Returns [`Error::BackendNotAvailable`] if no backend can be created
+	/// and initialized.
+	pub fn create_best(&self) -> Result<Backend<'_>> {
+		Backend::from_raw(unsafe { sys::prism_registry_create_best(self.ptr()) })
+	}
+
+	/// Returns a shared instance of the backend with this id, reusing a
+	/// cached instance if one is still alive.
+	///
+	/// Every handle to a cached instance shares one backend state, so a
+	/// voice or rate set through one handle is visible through all of them.
+	/// Use this only when that sharing is what you want; prefer
+	/// [`Prism::create`] otherwise.
+	///
+	/// The returned backend may already be initialized, depending on whether
+	/// it came from the cache. Call [`Backend::initialize`] and treat
+	/// [`Error::AlreadyInitialized`] as success.
+	///
+	/// # Errors
+	///
+	/// Returns [`Error::BackendNotAvailable`] if the backend cannot be
+	/// created.
+	pub fn acquire(&self, id: BackendId) -> Result<Backend<'_>> {
+		Backend::from_raw(unsafe { sys::prism_registry_acquire(self.ptr(), id.0) })
+	}
+
+	/// Returns a shared instance of the highest-priority backend that
+	/// initializes successfully, reusing a cached instance if one is still
+	/// alive.
+	///
+	/// Every handle to a cached instance shares one backend state, so a
+	/// voice or rate set through one handle is visible through all of them.
+	/// Use this only when that sharing is what you want; prefer
+	/// [`Prism::create_best`] otherwise.
+	///
+	/// The returned backend is always initialized; do not call
+	/// [`Backend::initialize`] on it.
+	///
+	/// # Errors
+	///
+	/// Returns [`Error::BackendNotAvailable`] if no backend can be acquired
 	/// and initialized.
 	pub fn acquire_best(&self) -> Result<Backend<'_>> {
 		Backend::from_raw(unsafe { sys::prism_registry_acquire_best(self.ptr()) })

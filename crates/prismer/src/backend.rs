@@ -148,7 +148,12 @@ impl Backend<'_> {
 		self.features().contains(features)
 	}
 
-	/// Initializes the backend, if it was created uninitialized.
+	/// Initializes the backend.
+	///
+	/// Backends from [`Prism::create`] and [`Prism::acquire`] need this.
+	/// Backends from [`Prism::create_best`] and [`Prism::acquire_best`] are
+	/// already initialized and report [`Error::AlreadyInitialized`] here,
+	/// which callers may treat as success.
 	///
 	/// # Errors
 	///

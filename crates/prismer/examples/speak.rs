@@ -5,7 +5,7 @@ use prismer::{Features, Prism};
 fn main() -> Result<(), Box<dyn Error>> {
 	let prism = Prism::new()?;
 	println!("prism {} with {} registered backends", prismer::version_string(), prism.backend_count());
-	let backend = prism.acquire_best()?;
+	let backend = prism.create_best()?;
 	println!("using backend: {}", backend.name());
 	backend.speak("Hello from Rust!", false)?;
 	if backend.supports(Features::IS_SPEAKING) {

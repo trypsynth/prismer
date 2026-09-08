@@ -11,11 +11,24 @@ Rust bindings to [prism](https://github.com/ethindp/prism), the platform-agnosti
 
 ```rust
 let prism = prismer::Prism::new()?;
-let backend = prism.acquire_best()?;
+let backend = prism.create_best()?;
 backend.speak("Hello from Rust!", false)?;
 ```
 
 See `crates/prismer/examples/speak.rs` for a fuller example, including feature detection and waiting for speech to finish.
+
+## Picking a backend
+
+There are four ways to get a backend:
+
+| Method | Backend state | Initialized on return |
+| --- | --- | --- |
+| `create_best()` | private to you | yes |
+| `create(id)` | private to you | no, call `initialize()` |
+| `acquire_best()` | shared with other callers | yes |
+| `acquire(id)` | shared with other callers | maybe, call `initialize()` and treat `AlreadyInitialized` as success |
+
+Use `create_best()` unless you have a specific reason not to. The `acquire` family returns a cached instance, so a voice, rate, or pitch set through one handle is visible through every other handle to that backend. Reach for it only when sharing that state is what you want.
 
 ## Building
 
