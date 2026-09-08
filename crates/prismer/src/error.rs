@@ -58,6 +58,36 @@ pub enum Error {
 /// A specialized [`Result`](core::result::Result) type for prism operations.
 pub type Result<T> = result::Result<T, Error>;
 
+impl Error {
+	pub(crate) const fn to_raw(self) -> sys::PrismError {
+		match self {
+			Self::NotInitialized => sys::PRISM_ERROR_NOT_INITIALIZED,
+			Self::InvalidParam => sys::PRISM_ERROR_INVALID_PARAM,
+			Self::NotImplemented => sys::PRISM_ERROR_NOT_IMPLEMENTED,
+			Self::NoVoices => sys::PRISM_ERROR_NO_VOICES,
+			Self::VoiceNotFound => sys::PRISM_ERROR_VOICE_NOT_FOUND,
+			Self::SpeakFailure => sys::PRISM_ERROR_SPEAK_FAILURE,
+			Self::MemoryFailure => sys::PRISM_ERROR_MEMORY_FAILURE,
+			Self::RangeOutOfBounds => sys::PRISM_ERROR_RANGE_OUT_OF_BOUNDS,
+			Self::Internal => sys::PRISM_ERROR_INTERNAL,
+			Self::NotSpeaking => sys::PRISM_ERROR_NOT_SPEAKING,
+			Self::NotPaused => sys::PRISM_ERROR_NOT_PAUSED,
+			Self::AlreadyPaused => sys::PRISM_ERROR_ALREADY_PAUSED,
+			Self::InvalidUtf8 => sys::PRISM_ERROR_INVALID_UTF8,
+			Self::InvalidOperation => sys::PRISM_ERROR_INVALID_OPERATION,
+			Self::AlreadyInitialized => sys::PRISM_ERROR_ALREADY_INITIALIZED,
+			Self::BackendNotAvailable => sys::PRISM_ERROR_BACKEND_NOT_AVAILABLE,
+			Self::InvalidAudioFormat => sys::PRISM_ERROR_INVALID_AUDIO_FORMAT,
+			Self::InternalBackendLimitExceeded => sys::PRISM_ERROR_INTERNAL_BACKEND_LIMIT_EXCEEDED,
+			Self::BackendEnteredUndefinedState => sys::PRISM_ERROR_BACKEND_ENTERED_UNDEFINED_STATE,
+			Self::LibraryLoadFailed => sys::PRISM_ERROR_LIBRARY_LOAD_FAILED,
+			Self::LibraryInvalid => sys::PRISM_ERROR_LIBRARY_INVALID,
+			Self::IncompatibleAbi => sys::PRISM_ERROR_INCOMPATIBLE_ABI,
+			Self::Unknown(code) => code,
+		}
+	}
+}
+
 pub(crate) const fn check(code: sys::PrismError) -> Result<()> {
 	match code {
 		sys::PRISM_OK => Ok(()),

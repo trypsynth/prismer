@@ -3,14 +3,14 @@ use core::{
 	fmt,
 	ptr::{self, NonNull},
 };
-use std::ffi::{CStr, c_void};
+use std::ffi::c_void;
 
 use prism_sys as sys;
 
 use crate::{
-	Backend, BackendId,
+	Backend, BackendId, Registry,
 	error::{Error, Result},
-	util::{copy_cstr, to_cstring},
+	util::{copy_cstr, str_from_ptr, to_cstring},
 };
 
 type AvailabilityHook = Box<dyn FnMut(BackendId, &str, bool) + Send>;
@@ -29,6 +29,7 @@ pub struct Prism {
 
 /// A builder for a [`Prism`] context, created by [`Prism::builder`].
 pub struct Builder {
+	registry: Option<Registry>,
 	poll_interval_ms: Option<u32>,
 	debounce_samples: Option<u32>,
 	backoff_max_ms: Option<u32>,
@@ -52,17 +53,25 @@ unsafe extern "C" fn availability_trampoline(
 	// prism_shutdown, which stops the poll thread, before the hook is dropped,
 	// so this is the only reference to it while it is held.
 	let hook = unsafe { &mut *userdata.cast::<AvailabilityHook>() };
-	let name = if name.is_null() {
-		""
-	} else {
-		// SAFETY: `name` is non-null here, and prism documents it as a
-		// NUL-terminated backend name that stays valid for the callback.
-		unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("")
-	};
+	// SAFETY: prism documents `name` as null or a NUL-terminated backend name
+	// that stays valid for the callback.
+	let name = unsafe { str_from_ptr(name) };
 	hook(BackendId(backend), name, available);
 }
 
 impl Builder {
+	/// Binds the context to `registry` instead of prism's default set of
+	/// backends.
+	///
+	/// Build one with [`RegistryBuilder`](crate::RegistryBuilder) when the
+	/// context should see custom or plugin backends. The context keeps its own
+	/// reference for as long as it lives.
+	#[must_use]
+	pub fn registry(mut self, registry: &Registry) -> Self {
+		self.registry = Some(registry.clone());
+		self
+	}
+
 	/// Sets how often, in milliseconds, prism polls backend availability.
 	#[must_use]
 	pub const fn poll_interval_ms(mut self, ms: u32) -> Self {
@@ -113,6 +122,9 @@ impl Builder {
 	pub fn build(self) -> Result<Prism> {
 		// SAFETY: takes no arguments and returns a config struct by value.
 		let mut cfg = unsafe { sys::prism_config_init() };
+		if let Some(registry) = self.registry.as_ref() {
+			cfg.registry = registry.ptr();
+		}
 		if let Some(ms) = self.poll_interval_ms {
 			cfg.availability_poll_interval_ms = ms;
 		}
@@ -142,6 +154,7 @@ impl Builder {
 impl fmt::Debug for Builder {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Builder")
+			.field("registry", &self.registry)
 			.field("poll_interval_ms", &self.poll_interval_ms)
 			.field("debounce_samples", &self.debounce_samples)
 			.field("backoff_max_ms", &self.backoff_max_ms)
@@ -166,6 +179,7 @@ impl Prism {
 	#[must_use]
 	pub const fn builder() -> Builder {
 		Builder {
+			registry: None,
 			poll_interval_ms: None,
 			debounce_samples: None,
 			backoff_max_ms: None,

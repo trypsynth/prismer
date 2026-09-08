@@ -13,6 +13,10 @@ mod context;
 mod error;
 mod features;
 mod id;
+/// prism's process-wide logging: handlers, severity thresholds, and emitting
+/// messages of your own.
+pub mod log;
+mod registry;
 mod util;
 
 use prism_sys as sys;
@@ -24,6 +28,7 @@ pub use crate::{
 	error::{Error, Result},
 	features::Features,
 	id::BackendId,
+	registry::{AudioSink, CustomBackend, Registry, RegistryBuilder},
 };
 
 /// Returns `true` if prism supports automatic power management of

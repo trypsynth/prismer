@@ -51,9 +51,49 @@ cargo build
 
 By default prism is built and linked as a shared library; note that your application must be able to find it (next to the executable on Windows, or on the loader path elsewhere) at runtime. Enable the `static` feature to build and link it statically instead — the build script links the C++ runtime for you, though some backends may need additional system libraries.
 
+## Custom backends
+
+You can write a backend in Rust and register it alongside prism's own. Implement `CustomBackend`, declare the operations you implemented, and freeze a registry:
+
+```rust
+use prismer::{CustomBackend, Features, Prism, RegistryBuilder};
+
+struct Printer;
+
+impl CustomBackend for Printer {
+	fn speak(&mut self, text: &str, interrupt: bool) -> prismer::Result<()> {
+		println!("{text}");
+		Ok(())
+	}
+}
+
+let mut builder = RegistryBuilder::new()?;
+let id = builder.add_backend("Example Printer", 10, Features::SPEAK, || Some(Printer))?;
+let registry = builder.freeze()?;
+let prism = Prism::builder().registry(&registry).build()?;
+let backend = prism.create(id)?;
+```
+
+Every trait method defaults to `NotImplemented`, and the vtable handed to prism gets a pointer only for the features you declare, so the two can never disagree. The factory closure runs once per instance, so instances never share state. See `crates/prismer/examples/custom_backend.rs` for a full program.
+
+`RegistryBuilder::add_library` loads a prism plugin shared library and registers the backends it supplies.
+
+## Logging
+
+The `log` module wraps prism's process-wide logger:
+
+```rust
+prismer::log::set_level(prismer::log::Level::Warn);
+prismer::log::set_handler(|level, source, message| {
+	eprintln!("[{level:?}] {source}: {message}");
+});
+```
+
+The handler runs on prism's logging thread, so keep it quick. It is leaked on purpose: prism may still deliver to a replaced handler, so there is no safe moment to free one.
+
 ## Status
 
-Early draft. Covered: context init and configuration (including availability callbacks), registry queries, backend creation and acquisition, speech, braille, output, playback control, volume, rate, pitch, voice enumeration and selection, audio format queries, and speak-to-memory with a closure callback. Not yet wrapped: the registry builder (custom backends and plugin libraries) and the logging API, though both are present in `prism-sys`.
+Early draft, but the C API is fully covered: context init and configuration (including availability callbacks), registry queries, backend creation and acquisition, speech, braille, output, playback control, volume, rate, pitch, voice enumeration and selection, audio format queries, speak-to-memory with a closure callback, custom backends and plugin libraries through the registry builder, and the logging API.
 
 ## License
 
