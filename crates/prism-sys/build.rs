@@ -1,9 +1,5 @@
 //! Builds and links the vendored prism library.
 
-// cmake::Config is a builder whose setters return `&mut Self` for chaining;
-// discarding that borrow is the normal way to call them.
-#![allow(unused_results)]
-
 use std::{env, path::PathBuf};
 
 use cmake::Config;
@@ -37,14 +33,14 @@ fn build_vendored(static_link: bool) {
 	println!("cargo:rerun-if-changed=prism/source");
 	println!("cargo:rerun-if-changed=prism/include");
 	let mut cfg = Config::new(&source);
-	cfg.define("BUILD_SHARED_LIBS", if static_link { "OFF" } else { "ON" });
+	let _ = cfg.define("BUILD_SHARED_LIBS", if static_link { "OFF" } else { "ON" });
 	if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
 		// prism defaults to the static CRT, but the objects must use the same
 		// CRT rustc links: the non-debug one, static or dynamic per the
 		// crt-static target feature.
 		let crt_static =
 			env::var("CARGO_CFG_TARGET_FEATURE").is_ok_and(|features| features.split(',').any(|f| f == "crt-static"));
-		cfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", if crt_static { "MultiThreaded" } else { "MultiThreadedDLL" });
+		let _ = cfg.define("CMAKE_MSVC_RUNTIME_LIBRARY", if crt_static { "MultiThreaded" } else { "MultiThreadedDLL" });
 	}
 	let dst = cfg.build();
 	println!("cargo:rustc-link-search=native={}", dst.join("lib").display());
