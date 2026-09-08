@@ -1,12 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/prism-sys", "crates/refract"]
+members = ["crates/prism-sys", "crates/prismer"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/trypsynth/refract"
+repository = "https://github.com/trypsynth/prismer"
 keywords = ["tts", "speech", "accessibility", "screen-reader"]
 categories = ["accessibility", "api-bindings"]
 

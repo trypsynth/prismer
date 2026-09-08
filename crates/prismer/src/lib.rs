@@ -2,10 +2,10 @@
 //! speech, braille, and screen reader output in Rust applications.
 //!
 //! ```no_run
-//! let prism = refract::Prism::new()?;
+//! let prism = prismer::Prism::new()?;
 //! let backend = prism.acquire_best()?;
 //! backend.speak("Hello from Rust!", false)?;
-//! # Ok::<(), refract::Error>(())
+//! # Ok::<(), prismer::Error>(())
 //! ```
 
 mod backend;

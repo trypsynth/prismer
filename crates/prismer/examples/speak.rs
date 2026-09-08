@@ -1,10 +1,10 @@
 use std::{error::Error, thread, time::Duration};
 
-use refract::{Features, Prism};
+use prismer::{Features, Prism};
 
 fn main() -> Result<(), Box<dyn Error>> {
 	let prism = Prism::new()?;
-	println!("prism {} with {} registered backends", refract::version_string(), prism.backend_count());
+	println!("prism {} with {} registered backends", prismer::version_string(), prism.backend_count());
 	let backend = prism.acquire_best()?;
 	println!("using backend: {}", backend.name());
 	backend.speak("Hello from Rust!", false)?;

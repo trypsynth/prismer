@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "refract"
+name = "prismer"
 version = "0.1.0"
 dependencies = [
  "prism-sys",

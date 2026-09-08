@@ -1,5 +1,5 @@
 [package]
-name = "refract"
+name = "prismer"
 description = "Safe Rust bindings to the prism speech library, for speech and screen reader output"
 version.workspace = true
 edition.workspace = true
