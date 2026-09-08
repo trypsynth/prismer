@@ -31,6 +31,8 @@ pub struct Voice {
 /// backend supports every operation; query [`Backend::features`] or
 /// [`Backend::supports`] before relying on one.
 pub struct Backend<'a> {
+	// Invariant: a live backend handle from the registry. Only Drop releases
+	// it, and it runs at most once.
 	raw: NonNull<sys::PrismBackend>,
 	_ctx: PhantomData<&'a Prism>,
 }
@@ -50,12 +52,16 @@ impl Backend<'_> {
 	/// Returns the backend's human-readable name.
 	#[must_use]
 	pub fn name(&self) -> String {
+		// SAFETY: `raw` is a live backend. prism documents name as valid before
+		// initialize.
 		copy_cstr(unsafe { sys::prism_backend_name(self.ptr()) })
 	}
 
 	/// Returns the set of features this backend advertises.
 	#[must_use]
 	pub fn features(&self) -> Features {
+		// SAFETY: `raw` is a live backend. prism documents get_features as valid
+		// in any initialization state.
 		Features(unsafe { sys::prism_backend_get_features(self.ptr()) })
 	}
 
@@ -76,6 +82,7 @@ impl Backend<'_> {
 	///
 	/// Returns an [`Error`] if the backend fails to initialize.
 	pub fn initialize(&self) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_initialize(self.ptr()) })
 	}
 
@@ -87,6 +94,8 @@ impl Backend<'_> {
 	/// contains an interior NUL, or speaking fails.
 	pub fn speak(&self, text: &str, interrupt: bool) -> Result<()> {
 		let text = to_cstring(text)?;
+		// SAFETY: `raw` is a live backend, and `text` is a NUL-terminated CString
+		// that outlives the call.
 		check(unsafe { sys::prism_backend_speak(self.ptr(), text.as_ptr(), interrupt) })
 	}
 
@@ -94,31 +103,47 @@ impl Backend<'_> {
 	/// interleaved `f32` samples along with their channel count and sample
 	/// rate.
 	///
+	/// This call blocks until synthesis finishes. `on_audio` may run once with
+	/// all the audio or many times with parts of it, and prism may run it on a
+	/// worker thread, which is why it must be [`Send`].
+	///
 	/// # Errors
 	///
 	/// Returns an [`Error`] if the backend does not support synthesis to
 	/// memory, `text` contains an interior NUL, or synthesis fails.
 	pub fn speak_to_memory<F>(&self, text: &str, mut on_audio: F) -> Result<()>
 	where
-		F: FnMut(&[f32], usize, usize),
+		F: FnMut(&[f32], usize, usize) + Send,
 	{
-		unsafe extern "C" fn trampoline<F: FnMut(&[f32], usize, usize)>(
+		/// # Safety
+		///
+		/// `userdata` must point at a live `F`, and `samples` must be null or
+		/// the start of `sample_count` readable `f32`s.
+		unsafe extern "C" fn trampoline<F: FnMut(&[f32], usize, usize) + Send>(
 			userdata: *mut c_void,
 			samples: *const f32,
 			sample_count: usize,
 			channels: usize,
 			sample_rate: usize,
 		) {
+			// SAFETY: the caller guarantees `userdata` points at a live `F`. The
+			// enclosing call is synchronous and passes the only pointer to it.
 			let on_audio = unsafe { &mut *userdata.cast::<F>() };
 			let samples = if samples.is_null() || sample_count == 0 {
 				&[]
 			} else {
+				// SAFETY: `samples` is non-null with a non-zero count here, and prism
+				// documents it as `sample_count` interleaved f32s valid for this call.
 				unsafe { slice::from_raw_parts(samples, sample_count) }
 			};
 			on_audio(samples, channels, sample_rate);
 		}
 		let text = to_cstring(text)?;
 		let userdata = (&raw mut on_audio).cast::<c_void>();
+		// SAFETY: `raw` is a live backend, `text` is a NUL-terminated CString that
+		// outlives the call, and `userdata` points at `on_audio` on this stack
+		// frame. prism documents speak_to_memory as always synchronous, so the
+		// callback cannot run after this returns.
 		check(unsafe { sys::prism_backend_speak_to_memory(self.ptr(), text.as_ptr(), Some(trampoline::<F>), userdata) })
 	}
 
@@ -130,6 +155,8 @@ impl Backend<'_> {
 	/// contains an interior NUL, or output fails.
 	pub fn braille(&self, text: &str) -> Result<()> {
 		let text = to_cstring(text)?;
+		// SAFETY: `raw` is a live backend, and `text` is a NUL-terminated CString
+		// that outlives the call.
 		check(unsafe { sys::prism_backend_braille(self.ptr(), text.as_ptr()) })
 	}
 
@@ -142,6 +169,8 @@ impl Backend<'_> {
 	/// contains an interior NUL, or output fails.
 	pub fn output(&self, text: &str, interrupt: bool) -> Result<()> {
 		let text = to_cstring(text)?;
+		// SAFETY: `raw` is a live backend, and `text` is a NUL-terminated CString
+		// that outlives the call.
 		check(unsafe { sys::prism_backend_output(self.ptr(), text.as_ptr(), interrupt) })
 	}
 
@@ -152,6 +181,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support stopping or is not
 	/// speaking.
 	pub fn stop(&self) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_stop(self.ptr()) })
 	}
 
@@ -162,6 +192,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support pausing, is not
 	/// speaking, or is already paused.
 	pub fn pause(&self) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_pause(self.ptr()) })
 	}
 
@@ -172,6 +203,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support resuming or is not
 	/// paused.
 	pub fn resume(&self) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_resume(self.ptr()) })
 	}
 
@@ -182,6 +214,8 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend cannot report its speaking state.
 	pub fn is_speaking(&self) -> Result<bool> {
 		let mut speaking = false;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_is_speaking(self.ptr(), &raw mut speaking) })?;
 		Ok(speaking)
 	}
@@ -193,6 +227,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support setting the volume
 	/// or the value is out of range.
 	pub fn set_volume(&self, volume: f32) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_set_volume(self.ptr(), volume) })
 	}
 
@@ -204,6 +239,8 @@ impl Backend<'_> {
 	/// volume.
 	pub fn volume(&self) -> Result<f32> {
 		let mut volume = 0.0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_volume(self.ptr(), &raw mut volume) })?;
 		Ok(volume)
 	}
@@ -215,6 +252,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support setting the rate
 	/// or the value is out of range.
 	pub fn set_rate(&self, rate: f32) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_set_rate(self.ptr(), rate) })
 	}
 
@@ -226,6 +264,8 @@ impl Backend<'_> {
 	/// rate.
 	pub fn rate(&self) -> Result<f32> {
 		let mut rate = 0.0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_rate(self.ptr(), &raw mut rate) })?;
 		Ok(rate)
 	}
@@ -237,6 +277,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support setting the pitch
 	/// or the value is out of range.
 	pub fn set_pitch(&self, pitch: f32) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_set_pitch(self.ptr(), pitch) })
 	}
 
@@ -248,6 +289,8 @@ impl Backend<'_> {
 	/// pitch.
 	pub fn pitch(&self) -> Result<f32> {
 		let mut pitch = 0.0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_pitch(self.ptr(), &raw mut pitch) })?;
 		Ok(pitch)
 	}
@@ -259,6 +302,7 @@ impl Backend<'_> {
 	///
 	/// Returns an [`Error`] if the backend does not support refreshing voices.
 	pub fn refresh_voices(&self) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_refresh_voices(self.ptr()) })
 	}
 
@@ -269,6 +313,8 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support counting voices.
 	pub fn voice_count(&self) -> Result<usize> {
 		let mut count = 0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_count_voices(self.ptr(), &raw mut count) })?;
 		Ok(count)
 	}
@@ -281,6 +327,8 @@ impl Backend<'_> {
 	/// voice does not exist.
 	pub fn voice_name(&self, voice_id: usize) -> Result<String> {
 		let mut name = ptr::null();
+		// SAFETY: `raw` is a live backend, and `name` is a live local that prism
+		// only points at a string it owns on success.
 		check(unsafe { sys::prism_backend_get_voice_name(self.ptr(), voice_id, &raw mut name) })?;
 		Ok(copy_cstr(name))
 	}
@@ -293,6 +341,8 @@ impl Backend<'_> {
 	/// the voice does not exist.
 	pub fn voice_language(&self, voice_id: usize) -> Result<String> {
 		let mut language = ptr::null();
+		// SAFETY: `raw` is a live backend, and `language` is a live local that
+		// prism only points at a string it owns on success.
 		check(unsafe { sys::prism_backend_get_voice_language(self.ptr(), voice_id, &raw mut language) })?;
 		Ok(copy_cstr(language))
 	}
@@ -304,6 +354,7 @@ impl Backend<'_> {
 	/// Returns an [`Error`] if the backend does not support switching voices
 	/// or the voice does not exist.
 	pub fn set_voice(&self, voice_id: usize) -> Result<()> {
+		// SAFETY: `raw` is a live backend (type invariant).
 		check(unsafe { sys::prism_backend_set_voice(self.ptr(), voice_id) })
 	}
 
@@ -315,6 +366,8 @@ impl Backend<'_> {
 	/// current voice.
 	pub fn voice(&self) -> Result<usize> {
 		let mut voice_id = 0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_voice(self.ptr(), &raw mut voice_id) })?;
 		Ok(voice_id)
 	}
@@ -344,6 +397,8 @@ impl Backend<'_> {
 	/// audio format.
 	pub fn channels(&self) -> Result<usize> {
 		let mut channels = 0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_channels(self.ptr(), &raw mut channels) })?;
 		Ok(channels)
 	}
@@ -356,6 +411,8 @@ impl Backend<'_> {
 	/// audio format.
 	pub fn sample_rate(&self) -> Result<usize> {
 		let mut sample_rate = 0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_sample_rate(self.ptr(), &raw mut sample_rate) })?;
 		Ok(sample_rate)
 	}
@@ -368,6 +425,8 @@ impl Backend<'_> {
 	/// audio format.
 	pub fn bit_depth(&self) -> Result<usize> {
 		let mut bit_depth = 0;
+		// SAFETY: `raw` is a live backend, and the out-parameter is a live local
+		// that prism only writes on success.
 		check(unsafe { sys::prism_backend_get_bit_depth(self.ptr(), &raw mut bit_depth) })?;
 		Ok(bit_depth)
 	}
@@ -381,6 +440,9 @@ impl fmt::Debug for Backend<'_> {
 
 impl Drop for Backend<'_> {
 	fn drop(&mut self) {
+		// SAFETY: `raw` is a live backend and Drop runs at most once, so this
+		// releases our handle exactly once. For acquired backends prism only
+		// destroys the instance when the last handle goes.
 		unsafe { sys::prism_backend_free(self.ptr()) };
 	}
 }

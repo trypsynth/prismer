@@ -21,6 +21,8 @@ type AvailabilityHook = Box<dyn FnMut(BackendId, &str, bool) + Send>;
 /// [`Prism::builder`]. The context shuts down when dropped; [`Backend`]s
 /// borrow from it and must be dropped first.
 pub struct Prism {
+	// Invariant: a live context from prism_init. Only Drop releases it, and it
+	// runs at most once.
 	raw: NonNull<sys::PrismContext>,
 	_availability: Option<Box<AvailabilityHook>>,
 }
@@ -34,14 +36,29 @@ pub struct Builder {
 	availability: Option<Box<AvailabilityHook>>,
 }
 
+/// # Safety
+///
+/// `userdata` must be the pointer to the live [`AvailabilityHook`] that was
+/// registered alongside this function, and `name` must be null or a
+/// NUL-terminated string.
 unsafe extern "C" fn availability_trampoline(
 	userdata: *mut c_void,
 	backend: sys::PrismBackendId,
 	name: *const c_char,
 	available: bool,
 ) {
+	// SAFETY: the caller guarantees `userdata` points at the live hook owned
+	// by the Prism this callback was registered with. Prism::drop calls
+	// prism_shutdown, which stops the poll thread, before the hook is dropped,
+	// so this is the only reference to it while it is held.
 	let hook = unsafe { &mut *userdata.cast::<AvailabilityHook>() };
-	let name = if name.is_null() { "" } else { unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("") };
+	let name = if name.is_null() {
+		""
+	} else {
+		// SAFETY: `name` is non-null here, and prism documents it as a
+		// NUL-terminated backend name that stays valid for the callback.
+		unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("")
+	};
 	hook(BackendId(backend), name, available);
 }
 
@@ -94,6 +111,7 @@ impl Builder {
 	///
 	/// Returns [`Error::Internal`] if prism fails to initialize.
 	pub fn build(self) -> Result<Prism> {
+		// SAFETY: takes no arguments and returns a config struct by value.
 		let mut cfg = unsafe { sys::prism_config_init() };
 		if let Some(ms) = self.poll_interval_ms {
 			cfg.availability_poll_interval_ms = ms;
@@ -112,6 +130,10 @@ impl Builder {
 			cfg.availability_callback = Some(availability_trampoline);
 			cfg.availability_userdata = ptr::from_mut::<AvailabilityHook>(hook.as_mut()).cast::<c_void>();
 		}
+		// SAFETY: `cfg` is a fully initialized config that outlives the call.
+		// prism_init copies what it needs. If a hook was set, its userdata points
+		// into `availability`, which moves into the returned Prism and so outlives
+		// the context.
 		let raw = unsafe { sys::prism_init(&raw mut cfg) };
 		NonNull::new(raw).map_or(Err(Error::Internal), |raw| Ok(Prism { raw, _availability: availability }))
 	}
@@ -159,6 +181,7 @@ impl Prism {
 	/// Returns the number of backends in the registry.
 	#[must_use]
 	pub fn backend_count(&self) -> usize {
+		// SAFETY: `raw` is a live context (type invariant).
 		unsafe { sys::prism_registry_count(self.ptr()) }
 	}
 
@@ -166,6 +189,8 @@ impl Prism {
 	#[must_use]
 	pub fn backend_ids(&self) -> Vec<BackendId> {
 		let count = self.backend_count();
+		// SAFETY: `raw` is a live context, and `i` stays below the count just read
+		// from the same registry.
 		(0..count).map(|i| BackendId(unsafe { sys::prism_registry_id_at(self.ptr(), i) })).collect()
 	}
 
@@ -177,6 +202,8 @@ impl Prism {
 	/// [`Error::InvalidParam`] if `name` contains an interior NUL.
 	pub fn backend_id_by_name(&self, name: &str) -> Result<BackendId> {
 		let name = to_cstring(name)?;
+		// SAFETY: `raw` is a live context, and `name` is a NUL-terminated CString
+		// that outlives the call.
 		let id = unsafe { sys::prism_registry_id(self.ptr(), name.as_ptr()) };
 		if id == sys::PRISM_BACKEND_INVALID { Err(Error::BackendNotAvailable) } else { Ok(BackendId(id)) }
 	}
@@ -185,6 +212,8 @@ impl Prism {
 	/// in the registry.
 	#[must_use]
 	pub fn backend_name(&self, id: BackendId) -> Option<String> {
+		// SAFETY: `raw` is a live context. An unregistered id yields null, which
+		// the caller checks.
 		let ptr = unsafe { sys::prism_registry_name(self.ptr(), id.0) };
 		if ptr.is_null() { None } else { Some(copy_cstr(ptr)) }
 	}
@@ -193,12 +222,14 @@ impl Prism {
 	/// preferred by [`Prism::acquire_best`].
 	#[must_use]
 	pub fn backend_priority(&self, id: BackendId) -> i32 {
+		// SAFETY: `raw` is a live context (type invariant).
 		unsafe { sys::prism_registry_priority(self.ptr(), id.0) }
 	}
 
 	/// Returns `true` if the registry contains a backend with this id.
 	#[must_use]
 	pub fn backend_exists(&self, id: BackendId) -> bool {
+		// SAFETY: `raw` is a live context (type invariant).
 		unsafe { sys::prism_registry_exists(self.ptr(), id.0) }
 	}
 
@@ -215,6 +246,8 @@ impl Prism {
 	/// Returns [`Error::BackendNotAvailable`] if the backend cannot be
 	/// created.
 	pub fn create(&self, id: BackendId) -> Result<Backend<'_>> {
+		// SAFETY: `raw` is a live context. A failed lookup yields null, which
+		// Backend::from_raw rejects.
 		Backend::from_raw(unsafe { sys::prism_registry_create(self.ptr(), id.0) })
 	}
 
@@ -230,6 +263,8 @@ impl Prism {
 	/// Returns [`Error::BackendNotAvailable`] if no backend can be created
 	/// and initialized.
 	pub fn create_best(&self) -> Result<Backend<'_>> {
+		// SAFETY: `raw` is a live context. Null when nothing initializes, which
+		// Backend::from_raw rejects.
 		Backend::from_raw(unsafe { sys::prism_registry_create_best(self.ptr()) })
 	}
 
@@ -250,6 +285,8 @@ impl Prism {
 	/// Returns [`Error::BackendNotAvailable`] if the backend cannot be
 	/// created.
 	pub fn acquire(&self, id: BackendId) -> Result<Backend<'_>> {
+		// SAFETY: `raw` is a live context. A failed lookup yields null, which
+		// Backend::from_raw rejects.
 		Backend::from_raw(unsafe { sys::prism_registry_acquire(self.ptr(), id.0) })
 	}
 
@@ -270,16 +307,20 @@ impl Prism {
 	/// Returns [`Error::BackendNotAvailable`] if no backend can be acquired
 	/// and initialized.
 	pub fn acquire_best(&self) -> Result<Backend<'_>> {
+		// SAFETY: `raw` is a live context. Null when nothing initializes, which
+		// Backend::from_raw rejects.
 		Backend::from_raw(unsafe { sys::prism_registry_acquire_best(self.ptr()) })
 	}
 
 	/// Pauses background availability polling.
 	pub fn pause_availability_polling(&self) {
+		// SAFETY: `raw` is a live context (type invariant).
 		unsafe { sys::prism_availability_poll_pause(self.ptr()) };
 	}
 
 	/// Resumes background availability polling.
 	pub fn resume_availability_polling(&self) {
+		// SAFETY: `raw` is a live context (type invariant).
 		unsafe { sys::prism_availability_poll_resume(self.ptr()) };
 	}
 }
@@ -292,6 +333,9 @@ impl fmt::Debug for Prism {
 
 impl Drop for Prism {
 	fn drop(&mut self) {
+		// SAFETY: `raw` is a live context and Drop runs at most once. Fields drop
+		// after this returns, so the availability hook outlives the poll thread
+		// that prism_shutdown stops.
 		unsafe { sys::prism_shutdown(self.ptr()) };
 	}
 }

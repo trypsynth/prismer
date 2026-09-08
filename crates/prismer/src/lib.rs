@@ -30,17 +30,21 @@ pub use crate::{
 /// availability polling on this platform.
 #[must_use]
 pub fn auto_power_management_supported() -> bool {
+	// SAFETY: takes no arguments and reads no context state.
 	unsafe { sys::prism_availability_auto_power_supported() }
 }
 
 /// Returns prism's version as a packed integer.
 #[must_use]
 pub fn version() -> u32 {
+	// SAFETY: takes no arguments and reads no context state.
 	unsafe { sys::prism_version() }
 }
 
 /// Returns prism's version as a human-readable string.
 #[must_use]
 pub fn version_string() -> String {
+	// SAFETY: takes no arguments and returns a static NUL-terminated string
+	// owned by prism.
 	copy_cstr(unsafe { sys::prism_version_string() })
 }

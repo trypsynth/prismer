@@ -36,3 +36,4 @@ nursery = { level = "deny", priority = -1 }
 # Conflicts with the rustc unreachable_pub lint, which matters more on a
 # public library: it stops private items from leaking into the API surface.
 redundant_pub_crate = "allow"
+undocumented_unsafe_blocks = "deny"

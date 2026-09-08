@@ -11,5 +11,8 @@ pub(crate) fn copy_cstr(ptr: *const c_char) -> String {
 		return String::new();
 	}
 
+	// SAFETY: `ptr` is non-null here, and every prism function that returns one
+	// documents it as a NUL-terminated string prism owns. The copy finishes
+	// before this returns, so no borrow outlives the call.
 	unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned()
 }
