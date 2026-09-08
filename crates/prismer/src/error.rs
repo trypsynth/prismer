@@ -58,7 +58,7 @@ pub enum Error {
 /// A specialized [`Result`](core::result::Result) type for prism operations.
 pub type Result<T> = result::Result<T, Error>;
 
-pub const fn check(code: sys::PrismError) -> Result<()> {
+pub(crate) const fn check(code: sys::PrismError) -> Result<()> {
 	match code {
 		sys::PRISM_OK => Ok(()),
 		sys::PRISM_ERROR_NOT_INITIALIZED => Err(Error::NotInitialized),

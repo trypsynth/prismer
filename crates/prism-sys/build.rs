@@ -1,3 +1,9 @@
+//! Builds and links the vendored prism library.
+
+// cmake::Config is a builder whose setters return `&mut Self` for chaining;
+// discarding that borrow is the normal way to call them.
+#![allow(unused_results)]
+
 use std::{env, path::PathBuf};
 
 use cmake::Config;

@@ -1,26 +1,30 @@
 //! Raw FFI bindings to prism (<https://github.com/ethindp/prism>), a
 //! platform-agnostic speech and screen reader output library.
 #![no_std]
-#![allow(non_camel_case_types, clippy::missing_safety_doc)]
+#![allow(missing_docs, non_camel_case_types, clippy::missing_safety_doc)]
 
 use core::ffi::{c_char, c_int, c_void};
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismContext {
 	_opaque: [u8; 0],
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismBackend {
 	_opaque: [u8; 0],
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismRegistry {
 	_opaque: [u8; 0],
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismRegistryBuilder {
 	_opaque: [u8; 0],
 }
@@ -135,7 +139,7 @@ pub type PrismLogCallback = Option<
 >;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PrismConfig {
 	pub version: u8,
 	pub registry: *mut PrismRegistry,
@@ -148,7 +152,7 @@ pub struct PrismConfig {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PrismBackendVTable {
 	pub size: usize,
 	pub create: Option<unsafe extern "C" fn(userdata: *mut c_void) -> *mut c_void>,
@@ -192,13 +196,14 @@ pub struct PrismBackendVTable {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PrismLogHandler {
 	pub fn_: PrismLogCallback,
 	pub userdata: *mut c_void,
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismPluginServices {
 	pub struct_size: u32,
 	pub reserved: u32,
@@ -206,6 +211,7 @@ pub struct PrismPluginServices {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismPluginInstanceContext {
 	pub struct_size: u32,
 	pub reserved: u32,
@@ -214,6 +220,7 @@ pub struct PrismPluginInstanceContext {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismPluginHost {
 	pub abi_version: u64,
 	pub struct_size: u32,
@@ -222,6 +229,7 @@ pub struct PrismPluginHost {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PrismPluginBackend {
 	pub abi_version: u64,
 	pub struct_size: u32,

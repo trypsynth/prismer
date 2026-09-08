@@ -1,3 +1,5 @@
+//! Speaks a line of text through the best available prism backend.
+
 use std::{error::Error, thread, time::Duration};
 
 use prismer::{Features, Prism};

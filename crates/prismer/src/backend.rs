@@ -1,4 +1,5 @@
 use core::{
+	fmt,
 	marker::PhantomData,
 	ops,
 	ptr::{self, NonNull},
@@ -456,17 +457,23 @@ impl Backend<'_> {
 	}
 }
 
+impl fmt::Debug for Backend<'_> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Backend").field("name", &self.name()).finish_non_exhaustive()
+	}
+}
+
 impl Drop for Backend<'_> {
 	fn drop(&mut self) {
 		unsafe { sys::prism_backend_free(self.ptr()) };
 	}
 }
 
-pub fn to_cstring(text: &str) -> Result<CString> {
+pub(crate) fn to_cstring(text: &str) -> Result<CString> {
 	CString::new(text).map_err(|_| Error::InvalidParam)
 }
 
-pub fn copy_cstr(ptr: *const c_char) -> String {
+pub(crate) fn copy_cstr(ptr: *const c_char) -> String {
 	if ptr.is_null() {
 		return String::new();
 	}

@@ -13,6 +13,7 @@ mod error;
 
 use core::{
 	ffi::c_char,
+	fmt,
 	ptr::{self, NonNull},
 };
 use std::ffi::{CStr, c_void};
@@ -181,6 +182,18 @@ impl Builder {
 	}
 }
 
+impl fmt::Debug for Builder {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Builder")
+			.field("poll_interval_ms", &self.poll_interval_ms)
+			.field("debounce_samples", &self.debounce_samples)
+			.field("backoff_max_ms", &self.backoff_max_ms)
+			.field("auto_power_manage", &self.auto_power_manage)
+			.field("availability", &self.availability.is_some())
+			.finish()
+	}
+}
+
 impl Prism {
 	/// Initializes prism with the default configuration.
 	///
@@ -333,6 +346,12 @@ impl Prism {
 	/// Resumes background availability polling.
 	pub fn resume_availability_polling(&self) {
 		unsafe { sys::prism_availability_poll_resume(self.ptr()) };
+	}
+}
+
+impl fmt::Debug for Prism {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Prism").field("backend_count", &self.backend_count()).finish_non_exhaustive()
 	}
 }
 
