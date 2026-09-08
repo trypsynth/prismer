@@ -6,6 +6,7 @@ members = ["crates/prism-sys", "crates/prismer"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+readme = "README.md"
 repository = "https://github.com/trypsynth/prismer"
 keywords = ["tts", "speech", "accessibility", "screen-reader"]
 categories = ["accessibility", "api-bindings"]
