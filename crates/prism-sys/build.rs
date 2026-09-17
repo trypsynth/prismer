@@ -51,8 +51,13 @@ fn link_cpp_runtime() {
 	let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 	let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 	match (os.as_str(), target_env.as_str()) {
-		// MSVC objects carry /DEFAULTLIB directives for their C++ runtime.
-		(_, "msvc") => {}
+		// MSVC objects carry /DEFAULTLIB directives for their C++ runtime,
+		// but not for the delay-load helper: prism_shutdown calls
+		// FUnloadDelayLoadedDLL2, which lives in delayimp. Linking prism as a
+		// DLL pulled that in on its own; linking it statically leaves it to
+		// whoever is doing the linking, and without it the consumer fails
+		// with "unresolved external symbol __FUnloadDelayLoadedDLL2".
+		(_, "msvc") => println!("cargo:rustc-link-lib=delayimp"),
 		("macos" | "ios" | "tvos" | "watchos" | "visionos", _) => println!("cargo:rustc-link-lib=c++"),
 		("android", _) => println!("cargo:rustc-link-lib=c++_shared"),
 		_ => println!("cargo:rustc-link-lib=stdc++"),

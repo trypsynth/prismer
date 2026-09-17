@@ -13,7 +13,7 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-prism-sys = { path = "../prism-sys", version = "0.1.0" }
+prism-sys = { path = "../prism-sys", version = "0.1.1" }
 
 [features]
 static = ["prism-sys/static"]
