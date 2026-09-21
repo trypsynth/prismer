@@ -207,13 +207,16 @@ pub const PRISM_BACKEND_WINDOW_EYES: PrismBackendId = 0x9120_D899_0878_5C13;
 pub const PRISM_BACKEND_SPIEL: PrismBackendId = 0x478B_44F1_4AD3_D89C;
 
 /// The `PrismConfig` layout version this binding describes.
-pub const PRISM_CONFIG_VERSION: u8 = 3;
+pub const PRISM_CONFIG_VERSION: u8 = 4;
 /// The plugin ABI generation this binding describes.
 pub const PRISM_PLUGIN_ABI_VERSION: u64 = 1;
 
 /// The type of a function invoked when a backend's runtime availability changes.
 pub type PrismAvailabilityCallback =
 	Option<unsafe extern "C" fn(userdata: *mut c_void, backend: PrismBackendId, name: *const c_char, available: bool)>;
+
+/// The type of a function invoked once the poll thread has established its availability baseline.
+pub type PrismAvailabilityBaselineCallback = Option<unsafe extern "C" fn(userdata: *mut c_void)>;
 
 /// Receives audio samples from `prism_backend_speak_to_memory`.
 pub type PrismAudioCallback = Option<
@@ -251,6 +254,8 @@ pub struct PrismConfig {
 	pub availability_backoff_max_ms: u32,
 	/// When `true`, and when the library was built with power-management support, the poll thread is paused automatically when the operating system suspends and resumed when it wakes. When `false`, or on builds and platforms without power-management support, this field has no effect and the application MAY drive pausing itself. Use `prism_availability_auto_power_supported` to determine whether this field is honored. It is ignored when `availability_callback` is `NULL`. This field was added in version 3 of this structure.
 	pub availability_auto_power_manage: bool,
+	/// A function invoked exactly once per context, on the poll thread, after the first availability scan has completed and before the first invocation of `availability_callback`, or `NULL`. It receives `availability_userdata`. It is ignored when `availability_callback` is `NULL`. This field was added in version 4 of this structure.
+	pub availability_baseline_callback: PrismAvailabilityBaselineCallback,
 }
 
 /// A table of function pointers implementing a custom backend.
