@@ -4,6 +4,13 @@ use std::{env, path::PathBuf};
 
 use cmake::Config;
 
+/// The Windows system libraries prism links itself, in `PrismPlatformWindows.cmake`.
+///
+/// A static prism leaves these to the final link too, and nothing else names them there. An
+/// application only linked them by luck, when another dependency happened to pull them in;
+/// otherwise it failed with unresolved UI Automation, RPC and Windows Runtime symbols.
+const WINDOWS_SYSTEM_LIBS: &[&str] = &["ole32", "onecore", "runtimeobject", "uiautomationcore", "rpcrt4", "powrprof"];
+
 fn main() {
 	println!("cargo:rerun-if-env-changed=PRISM_LIB_DIR");
 	let static_link = env::var("CARGO_FEATURE_STATIC").is_ok();
@@ -33,6 +40,9 @@ fn main() {
 fn link_windows_import_libs() {
 	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
 		return;
+	}
+	for lib in WINDOWS_SYSTEM_LIBS {
+		println!("cargo:rustc-link-lib=dylib={lib}");
 	}
 	let Some(lib_dir) = env::var_os("OUT_DIR").map(PathBuf::from).map(|out| out.join("lib")) else { return };
 	let manifest = lib_dir.join("prism-static-windows.txt");

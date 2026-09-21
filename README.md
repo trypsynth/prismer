@@ -49,7 +49,21 @@ set PRISM_LIB_DIR=path\to\prism\build
 cargo build
 ```
 
-By default prism is built and linked as a shared library; note that your application must be able to find it (next to the executable on Windows, or on the loader path elsewhere) at runtime. Enable the `static` feature to build and link it statically instead — the build script links the C++ runtime for you, though some backends may need additional system libraries.
+By default prism is built and linked as a shared library; note that your application must be able to find it (next to the executable on Windows, or on the loader path elsewhere) at runtime. Enable the `static` feature to build and link it statically instead. The build script links the C++ runtime and the system libraries prism needs for you.
+
+On Windows, a static build has one more step. The screen reader backends import DLLs that most machines don't have, so your program has to delay load them, or it won't start without all of them installed. Linker flags only apply to the crate that sets them, so this has to happen in your application's own `build.rs`. prismer passes the list on to you:
+
+```rust
+fn main() {
+	if let Ok(dlls) = std::env::var("DEP_PRISMER_DELAY_LOAD_DLLS") {
+		for dll in dlls.split(';').filter(|dll| !dll.is_empty()) {
+			println!("cargo:rustc-link-arg=/DELAYLOAD:{dll}");
+		}
+	}
+}
+```
+
+The linker may warn that a couple of these were ignored because nothing imports from them. That's expected: those are bridges for backends that only exist on other platforms.
 
 ## Custom backends
 
