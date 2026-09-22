@@ -11,6 +11,9 @@ use cmake::Config;
 /// otherwise it failed with unresolved UI Automation, RPC and Windows Runtime symbols.
 const WINDOWS_SYSTEM_LIBS: &[&str] = &["ole32", "onecore", "runtimeobject", "uiautomationcore", "rpcrt4", "powrprof"];
 
+/// The frameworks prism links itself on macOS, in `PrismPlatformApple.cmake`.
+const MACOS_FRAMEWORKS: &[&str] = &["Foundation", "AVFoundation", "AppKit", "IOKit", "CoreFoundation"];
+
 fn main() {
 	println!("cargo:rerun-if-env-changed=PRISM_LIB_DIR");
 	let static_link = env::var("CARGO_FEATURE_STATIC").is_ok();
@@ -24,6 +27,42 @@ fn main() {
 	if static_link {
 		link_cpp_runtime();
 		link_windows_import_libs();
+		link_macos_frameworks();
+		link_pkg_config_modules();
+	}
+}
+
+fn link_macos_frameworks() {
+	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
+		return;
+	}
+	for framework in MACOS_FRAMEWORKS {
+		println!("cargo:rustc-link-lib=framework={framework}");
+	}
+}
+
+/// Links the pkg-config modules the Linux backends were built against.
+///
+/// Which ones depends on what the build found, so the list comes from the
+/// `prism-config.cmake` prism installs for its own static consumers.
+fn link_pkg_config_modules() {
+	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("linux") {
+		return;
+	}
+	let Some(config) = env::var_os("OUT_DIR").map(PathBuf::from).map(|out| out.join("share/prism/prism-config.cmake"))
+	else {
+		return;
+	};
+	let Ok(text) = std::fs::read_to_string(&config) else {
+		println!("cargo:warning=prism-config.cmake is missing; the Linux backends will not link");
+		return;
+	};
+	for line in text.lines().filter(|line| line.trim_start().starts_with("pkg_check_modules(")) {
+		let Some(module) = line.split('"').nth(1) else { continue };
+		let (name, version) = module.split_once(">=").unwrap_or((module, "0"));
+		if let Err(error) = pkg_config::Config::new().atleast_version(version).probe(name) {
+			println!("cargo:warning={error}");
+		}
 	}
 }
 
