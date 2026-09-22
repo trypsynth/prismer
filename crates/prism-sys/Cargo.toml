@@ -16,6 +16,7 @@ workspace = true
 
 [build-dependencies]
 cmake = "0.1.58"
+pkg-config = "0.3"
 
 [features]
 static = []
