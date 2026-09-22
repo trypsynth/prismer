@@ -56,4 +56,6 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test --target ${{ matrix.target }} ${{ matrix.link == 'static' && '--features static' || '' }}
+        # Skips doctests, since rustdoc links its own binary without the
+        # delay-load flags or the library search path cargo sets.
+        run: cargo test --tests --target ${{ matrix.target }} ${{ matrix.link == 'static' && '--features static' || '' }}
