@@ -65,6 +65,8 @@ fn main() {
 
 The linker may warn that a couple of these were ignored because nothing imports from them. That's expected: those are bridges for backends that only exist on other platforms.
 
+On macOS and iOS, cargo links the system frameworks a static build needs. If you build a Rust `staticlib` and link it from Xcode, cargo isn't doing the final link, so add them to your Xcode target yourself: Foundation, AVFoundation, AppKit, IOKit, and CoreFoundation on macOS, or Foundation, AVFoundation, and UIKit on iOS.
+
 ## Custom backends
 
 You can write a backend in Rust and register it alongside prism's own. Implement `CustomBackend`, declare the operations you implemented, and freeze a registry:

@@ -11,6 +11,15 @@ use cmake::Config;
 /// otherwise it failed with unresolved UI Automation, RPC and Windows Runtime symbols.
 const WINDOWS_SYSTEM_LIBS: &[&str] = &["ole32", "onecore", "runtimeobject", "uiautomationcore", "rpcrt4", "powrprof"];
 
+/// The frameworks prism links itself on macOS, in `PrismPlatformApple.cmake`.
+///
+/// `IOKit` and `CoreFoundation` are for the power notifier, which is always linked, so a static
+/// binary fails to link without them even before any backend is used.
+const MACOS_FRAMEWORKS: &[&str] = &["Foundation", "AVFoundation", "AppKit", "IOKit", "CoreFoundation"];
+
+/// The frameworks prism links itself on iOS, in `PrismPlatformApple.cmake`.
+const IOS_FRAMEWORKS: &[&str] = &["Foundation", "AVFoundation", "UIKit"];
+
 fn main() {
 	println!("cargo:rerun-if-env-changed=PRISM_LIB_DIR");
 	let static_link = env::var("CARGO_FEATURE_STATIC").is_ok();
@@ -24,6 +33,21 @@ fn main() {
 	if static_link {
 		link_cpp_runtime();
 		link_windows_import_libs();
+		link_apple_frameworks();
+	}
+}
+
+/// Links the frameworks the Apple backends and power notifier use.
+///
+/// A shared prism links these itself; a static one leaves them to the final link.
+fn link_apple_frameworks() {
+	let frameworks = match env::var("CARGO_CFG_TARGET_OS").as_deref() {
+		Ok("macos") => MACOS_FRAMEWORKS,
+		Ok("ios") => IOS_FRAMEWORKS,
+		_ => return,
+	};
+	for framework in frameworks {
+		println!("cargo:rustc-link-lib=framework={framework}");
 	}
 }
 
