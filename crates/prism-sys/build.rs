@@ -23,45 +23,19 @@ fn main() {
 	println!("cargo:rustc-link-lib={kind}=prism");
 	if static_link {
 		link_cpp_runtime();
-		link_windows_import_libs();
+		link_windows_system_libs();
 	}
 }
 
-/// Links what the Windows backends import, and delay loads every DLL behind
-/// them.
-///
-/// A shared prism links these itself. A static one hands the job to whoever
-/// is doing the final link, and the delay loading is the part that matters:
-/// without it the screen reader DLLs become hard dependencies, and the
-/// program will not start on a machine that does not have all of them.
-///
-/// The list is written by prism's own install step, so it always matches the
-/// backends that were actually built.
-fn link_windows_import_libs() {
+/// Links the Windows system libraries prism imports, which a shared prism
+/// links itself and a static one leaves to whoever is doing the final link.
+fn link_windows_system_libs() {
 	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
 		return;
 	}
 	for lib in WINDOWS_SYSTEM_LIBS {
 		println!("cargo:rustc-link-lib=dylib={lib}");
 	}
-	let Some(lib_dir) = env::var_os("OUT_DIR").map(PathBuf::from).map(|out| out.join("lib")) else { return };
-	let manifest = lib_dir.join("prism-static-windows.txt");
-	let Ok(text) = std::fs::read_to_string(&manifest) else {
-		println!("cargo:warning=prism-static-windows.txt is missing; the Windows backends will not link");
-		return;
-	};
-	let mut dlls = Vec::new();
-	for line in text.lines() {
-		let mut parts = line.split_whitespace();
-		let (Some(lib), Some(dll)) = (parts.next(), parts.next()) else { continue };
-		println!("cargo:rustc-link-lib=dylib={lib}");
-		dlls.push(dll);
-	}
-	// Cargo only applies rustc-link-arg to the crate that emits it, so the
-	// delay-load flags cannot be set from here: they have to be on the final
-	// link. This publishes the list instead, and a `links = "prism"` crate's
-	// metadata reaches every direct dependent as DEP_PRISM_DELAY_LOAD_DLLS.
-	println!("cargo:delay_load_dlls={}", dlls.join(";"));
 }
 
 fn build_vendored(static_link: bool) {
@@ -96,13 +70,8 @@ fn link_cpp_runtime() {
 	let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 	let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 	match (os.as_str(), target_env.as_str()) {
-		// MSVC objects carry /DEFAULTLIB directives for their C++ runtime,
-		// but not for the delay-load helper: prism_shutdown calls
-		// FUnloadDelayLoadedDLL2, which lives in delayimp. Linking prism as a
-		// DLL pulled that in on its own; linking it statically leaves it to
-		// whoever is doing the linking, and without it the consumer fails
-		// with "unresolved external symbol __FUnloadDelayLoadedDLL2".
-		(_, "msvc") => println!("cargo:rustc-link-lib=delayimp"),
+		// MSVC objects carry /DEFAULTLIB directives for their C++ runtime.
+		(_, "msvc") => {}
 		("macos" | "ios" | "tvos" | "watchos" | "visionos", _) => println!("cargo:rustc-link-lib=c++"),
 		("android", _) => println!("cargo:rustc-link-lib=c++_shared"),
 		_ => println!("cargo:rustc-link-lib=stdc++"),

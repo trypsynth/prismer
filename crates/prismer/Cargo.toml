@@ -3,9 +3,6 @@ name = "prismer"
 description = "Safe Rust bindings to the prism speech library, for speech and screen reader output"
 version.workspace = true
 edition.workspace = true
-# Set so cargo will carry this crate's metadata (the delay-load list from
-# prism-sys) through to direct dependents.
-links = "prismer"
 license.workspace = true
 readme.workspace = true
 repository.workspace = true
@@ -16,7 +13,7 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-prism-sys = { path = "../prism-sys", version = "0.1.2" }
+prism-sys = { path = "../prism-sys", version = "0.1.4" }
 
 [features]
 static = ["prism-sys/static"]
